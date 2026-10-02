@@ -9,7 +9,7 @@ Built with **React**, **TypeScript**, **Tailwind CSS**, and **Recharts**. Fully 
 ## Features
 
 - **Fast 2-Tap Logging**: Autofocused numeric keypad (`inputmode="decimal"`), quick category chips, and thumb-reachable action. Adding an expense takes at most 2 taps after typing the amount.
-- **🇪🇹 ETB Currency First**: All monetary values are formatted with `Intl.NumberFormat` using monospaced tabular numerals (`tabular-nums`) for clean column alignment.
+- **ETB Currency First**: All monetary values are formatted with `Intl.NumberFormat` using monospaced tabular numerals (`tabular-nums`) for clean column alignment.
 - **Flexible Categories**: Includes standard categories (*Food, Transport, Housing, Bills, Shopping, Health, Entertainment, Other*) plus a custom category builder with icon and color customization.
 - **Chronological History**: Expenses grouped by day (*Today*, *Yesterday*, or date) with instant search, category filters, inline editing, and a **5-second Undo toast** on deletion.
 - **Insights & Trends**:
