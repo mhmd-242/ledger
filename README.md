@@ -47,3 +47,51 @@ Ensure you have [Node.js](https://nodejs.org/) (v18+) installed.
    ```bash
    git clone https://github.com/mhmd-242/ledger.git
    cd ledger
+   
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Start the development server:
+
+```bash
+npm run dev
+```
+
+Open the local URL shown in the terminal (usually `http://localhost:5173`). For the best preview, use your browser's device toolbar at 360-430px width.
+
+### Build for production
+
+```bash
+npm run build
+```
+
+The output goes to the `dist/` folder. To test the production build locally:
+
+```bash
+npm run preview
+```
+
+### Deploy
+
+The app is a static site, so it works on any static host. On Vercel, import the GitHub repo and use these settings:
+
+- Framework preset: Vite
+- Build command: `npm run build`
+- Output directory: `dist`
+
+Every push to `master` redeploys automatically.
+
+## Data & Privacy
+
+All data is stored in your browser's `localStorage`. Nothing is sent to a server. Clearing your browser data will erase your expenses, so use **Export** in the app regularly to save a JSON backup, and **Import** to restore it.
+
+## Project Structure
+
+```
+src/        App source (components, storage service, utilities)
+public/     Static assets
+index.html  App entry
+```
