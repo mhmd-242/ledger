@@ -1,5 +1,8 @@
-export interface Expense {
+﻿export type TransactionType = 'expense' | 'income';
+
+export interface Transaction {
   id: string;
+  type: TransactionType;
   amount: number;
   categoryId: string;
   note?: string;
@@ -7,12 +10,16 @@ export interface Expense {
   createdAt: number;
 }
 
+// Backwards compatibility alias
+export type Expense = Transaction;
+
 export interface Category {
   id: string;
   name: string;
   iconName: string;
   color: string;
   isCustom?: boolean;
+  type?: TransactionType; // defaults to 'expense'
 }
 
 export interface Budget {
@@ -33,7 +40,9 @@ export interface ToastAction {
 export interface BackupData {
   version: number;
   exportedAt: string;
-  expenses: Expense[];
-  categories: Category[];
+  transactions?: Transaction[];
+  expenses?: Transaction[]; // backward compatibility
+  categories?: Category[];
+  incomeCategories?: Category[];
   budgets: Budget;
 }

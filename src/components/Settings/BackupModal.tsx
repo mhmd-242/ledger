@@ -1,14 +1,20 @@
-import React, { useRef, useState } from 'react';
+﻿import React, { useRef, useState } from 'react';
 import { StorageService } from '../../services/storage';
-import { Download, Upload, RotateCcw, Trash2, X, Check, AlertCircle } from 'lucide-react';
+import { Download, Upload, Trash2, X, Check, AlertCircle, Wallet } from 'lucide-react';
 
 interface BackupModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDataChanged: () => void;
+  onOpenStartingBalance: () => void;
 }
 
-export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, onDataChanged }) => {
+export const BackupModal: React.FC<BackupModalProps> = ({
+  isOpen,
+  onClose,
+  onDataChanged,
+  onOpenStartingBalance,
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(
     null
@@ -58,18 +64,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, onDat
       }
     };
     reader.readAsText(file);
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleResetDemo = () => {
-    StorageService.resetDemo();
-    setStatusMessage({ text: 'Reset to sample 6-month demo data.' });
-    onDataChanged();
-    setTimeout(() => {
-      setStatusMessage(null);
-      onClose();
-    }, 1200);
   };
 
   const handleClearAll = () => {
@@ -78,7 +73,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, onDat
       return;
     }
     StorageService.clearAll();
-    setStatusMessage({ text: 'All expenses cleared.' });
+    setStatusMessage({ text: 'All data cleared.' });
     setConfirmClear(false);
     onDataChanged();
     setTimeout(() => {
@@ -97,10 +92,10 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, onDat
         <div className="flex items-center justify-between pb-3 border-b border-surface-border mb-4">
           <div>
             <h3 className="font-bold text-base text-neutral-900 dark:text-neutral-100">
-              Data & Backup
+              Settings & Backup
             </h3>
             <p className="text-xs text-neutral-500">
-              Export, import or reset local data
+              Manage balance, export and restore
             </p>
           </div>
           <button
@@ -129,7 +124,26 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, onDat
         )}
 
         <div className="space-y-3">
-          {/* Export button */}
+          {/* Starting balance button */}
+          <button
+            onClick={() => {
+              onClose();
+              onOpenStartingBalance();
+            }}
+            className="w-full p-3 rounded-xl border border-surface-border bg-surface-bg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 text-sm font-semibold flex items-center gap-3 transition-colors text-left"
+          >
+            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-300 flex items-center justify-center shrink-0">
+              <Wallet className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="leading-tight">Set starting balance</p>
+              <span className="text-[11px] font-normal text-neutral-500">
+                Log opening cash or bank funds
+              </span>
+            </div>
+          </button>
+
+          {/* Export */}
           <button
             onClick={handleExport}
             className="w-full p-3 rounded-xl border border-surface-border bg-surface-bg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 text-sm font-semibold flex items-center gap-3 transition-colors text-left"
@@ -140,12 +154,12 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, onDat
             <div>
               <p className="leading-tight">Export JSON backup</p>
               <span className="text-[11px] font-normal text-neutral-500">
-                Download your expenses and budgets
+                Download transactions and budgets
               </span>
             </div>
           </button>
 
-          {/* Import file input */}
+          {/* Import */}
           <input
             type="file"
             ref={fileInputRef}
@@ -163,21 +177,12 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, onDat
             <div>
               <p className="leading-tight">Import JSON backup</p>
               <span className="text-[11px] font-normal text-neutral-500">
-                Restore data from a JSON file
+                Restore data from a JSON file (v1 or v2)
               </span>
             </div>
           </button>
 
           <hr className="border-surface-border my-2" />
-
-          {/* Load Sample Demo */}
-          <button
-            onClick={handleResetDemo}
-            className="w-full p-2.5 rounded-xl border border-surface-border bg-surface-card hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold flex items-center gap-2.5 transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-neutral-500" />
-            <span>Load 6-month sample demo data</span>
-          </button>
 
           {/* Clear all */}
           <button
@@ -189,7 +194,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose, onDat
             }`}
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>{confirmClear ? 'Click again to confirm clear' : 'Clear all data'}</span>
+            <span>{confirmClear ? 'Click again to confirm reset' : 'Clear all data'}</span>
           </button>
         </div>
       </div>

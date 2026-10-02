@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Expense, Category, Budget, TabType, ToastAction } from './types';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Transaction, Category, Budget, TabType, ToastAction, TransactionType } from './types';
 import { StorageService } from './services/storage';
 import { getTodayString } from './utils/formatters';
 import { TopHeader } from './components/Header/TopHeader';
@@ -10,35 +10,34 @@ import { InsightsView } from './components/Insights/InsightsView';
 import { BudgetsView } from './components/Budgets/BudgetsView';
 import { CategoryManagerModal } from './components/Categories/CategoryManagerModal';
 import { BackupModal } from './components/Settings/BackupModal';
+import { StartingBalanceModal } from './components/Settings/StartingBalanceModal';
 import { Toast } from './components/Common/Toast';
 
 export const App: React.FC = () => {
-  // Theme state
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('ledger_theme_v1');
     if (saved) return saved === 'dark';
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
-  // App data state
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
+  const [incomeCategories, setIncomeCategories] = useState<Category[]>([]);
   const [budget, setBudget] = useState<Budget>({
     overallMonthly: 0,
     categoryBudgets: {},
   });
 
-  // Navigation state
   const [activeTab, setActiveTab] = useState<TabType>('add');
 
-  // Modal states
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
+  const [categoryModalType, setCategoryModalType] = useState<TransactionType>('expense');
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isStartingBalanceModalOpen, setIsStartingBalanceModalOpen] = useState(false);
+  const [showStartingBalancePrompt, setShowStartingBalancePrompt] = useState(false);
 
-  // Toast state
   const [toast, setToast] = useState<ToastAction | null>(null);
 
-  // Apply dark mode class to <html>
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -49,19 +48,26 @@ export const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
-  // Load initial data
   const loadData = useCallback(() => {
     StorageService.init();
-    setExpenses(StorageService.getExpenses());
-    setCategories(StorageService.getCategories());
+    const txs = StorageService.getTransactions();
+    setTransactions(txs);
+    setExpenseCategories(StorageService.getExpenseCategories());
+    setIncomeCategories(StorageService.getIncomeCategories());
     setBudget(StorageService.getBudgets());
+
+    // Check if starting balance should be prompted (only on fresh installs with 0 transactions and not previously prompted)
+    if (txs.length === 0 && !StorageService.hasStartingBalancePrompted()) {
+      setShowStartingBalancePrompt(true);
+    } else {
+      setShowStartingBalancePrompt(false);
+    }
   }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Trigger Toast helper with auto-dismiss
   const showToast = useCallback(
     (message: string, actionLabel?: string, onAction?: () => void, duration = 5000) => {
       const id = Date.now().toString();
@@ -70,7 +76,6 @@ export const App: React.FC = () => {
     []
   );
 
-  // Toast auto-timer
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => {
@@ -79,137 +84,210 @@ export const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // Handlers for expenses
-  const handleAddExpense = (expenseData: Omit<Expense, 'id' | 'createdAt'>) => {
-    StorageService.addExpense(expenseData);
-    setExpenses(StorageService.getExpenses());
-    const cat = categories.find((c) => c.id === expenseData.categoryId);
-    showToast(`Expense saved in ${cat?.name || 'Category'}`);
+  // Transaction handlers
+  const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'createdAt'>) => {
+    StorageService.addTransaction(txData);
+    setTransactions(StorageService.getTransactions());
+    const cats = txData.type === 'income' ? incomeCategories : expenseCategories;
+    const cat = cats.find((c) => c.id === txData.categoryId);
+    const label = txData.type === 'income' ? 'Income logged in' : 'Expense saved in';
+    showToast(`${label} ${cat?.name || 'Category'}`);
+    setShowStartingBalancePrompt(false);
   };
 
-  const handleUpdateExpense = (updated: Expense) => {
-    StorageService.updateExpense(updated);
-    setExpenses(StorageService.getExpenses());
-    showToast('Expense updated');
+  const handleUpdateTransaction = (updated: Transaction) => {
+    StorageService.updateTransaction(updated);
+    setTransactions(StorageService.getTransactions());
+    showToast('Record updated');
   };
 
-  const handleDeleteExpense = (id: string) => {
-    const deletedItem = StorageService.deleteExpense(id);
-    setExpenses(StorageService.getExpenses());
+  const handleDeleteTransaction = (id: string) => {
+    const deletedItem = StorageService.deleteTransaction(id);
+    setTransactions(StorageService.getTransactions());
 
     if (deletedItem) {
       showToast(
-        'Expense deleted',
+        `${deletedItem.type === 'income' ? 'Income' : 'Expense'} record deleted`,
         'Undo',
         () => {
-          StorageService.restoreExpense(deletedItem);
-          setExpenses(StorageService.getExpenses());
-          showToast('Expense restored');
+          StorageService.restoreTransaction(deletedItem);
+          setTransactions(StorageService.getTransactions());
+          showToast('Record restored');
         },
         5000
       );
     }
   };
 
-  // Handlers for categories
-  const handleAddCategory = (newCat: Omit<Category, 'id' | 'isCustom'>) => {
-    StorageService.addCategory(newCat);
-    setCategories(StorageService.getCategories());
-    showToast(`Category "${newCat.name}" added`);
+  const handleSaveStartingBalance = (amount: number) => {
+    StorageService.setStartingBalance(amount);
+    setTransactions(StorageService.getTransactions());
+    setShowStartingBalancePrompt(false);
+    showToast('Starting balance recorded');
+  };
+
+  // Category handlers
+  const handleAddCategory = (newCat: Omit<Category, 'id' | 'isCustom'>, type: TransactionType) => {
+    StorageService.addCategory(newCat, type);
+    if (type === 'income') {
+      setIncomeCategories(StorageService.getIncomeCategories());
+    } else {
+      setExpenseCategories(StorageService.getExpenseCategories());
+    }
+    showToast(`Category "${newCat.name}" created`);
   };
 
   const handleUpdateCategory = (cat: Category) => {
     StorageService.updateCategory(cat);
-    setCategories(StorageService.getCategories());
-    showToast('Category renamed');
+    if (cat.type === 'income') {
+      setIncomeCategories(StorageService.getIncomeCategories());
+    } else {
+      setExpenseCategories(StorageService.getExpenseCategories());
+    }
+    showToast('Category updated');
   };
 
-  const handleDeleteCategory = (catId: string) => {
-    StorageService.deleteCategory(catId);
-    setCategories(StorageService.getCategories());
-    setExpenses(StorageService.getExpenses());
-    showToast('Category removed (expenses moved to Other)');
+  const handleDeleteCategory = (catId: string, type: TransactionType) => {
+    StorageService.deleteCategory(catId, type);
+    if (type === 'income') {
+      setIncomeCategories(StorageService.getIncomeCategories());
+    } else {
+      setExpenseCategories(StorageService.getExpenseCategories());
+    }
+    setTransactions(StorageService.getTransactions());
+    showToast('Category deleted');
   };
 
   // Budget handler
   const handleUpdateBudget = (newBudget: Budget) => {
     StorageService.saveBudgets(newBudget);
     setBudget(newBudget);
-    showToast('Budget target saved');
+    showToast('Monthly target saved');
   };
 
-  // Today's expenses for quick add screen preview
+  // Live financial metrics
   const todayStr = getTodayString();
-  const todayExpenses = useMemo(() => {
-    return expenses.filter((e) => e.date === todayStr);
-  }, [expenses, todayStr]);
+  const currentMonthKey = todayStr.slice(0, 7);
+
+  const todayTransactions = useMemo(() => {
+    return transactions.filter((t) => t.date === todayStr);
+  }, [transactions, todayStr]);
+
+  const todaySpent = useMemo(() => {
+    return todayTransactions
+      .filter((t) => (t.type || 'expense') === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [todayTransactions]);
+
+  const monthIncome = useMemo(() => {
+    return transactions
+      .filter((t) => t.date?.startsWith(currentMonthKey) && t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [transactions, currentMonthKey]);
+
+  const totalBalance = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    transactions.forEach((t) => {
+      if (t.type === 'income') {
+        income += t.amount;
+      } else {
+        expense += t.amount;
+      }
+    });
+    return income - expense;
+  }, [transactions]);
+
+  const allCategories = useMemo(() => {
+    return [...expenseCategories, ...incomeCategories];
+  }, [expenseCategories, incomeCategories]);
 
   return (
     <div className="min-h-screen bg-surface-bg text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors">
-      {/* Top Header */}
       <TopHeader
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
-        onOpenCategories={() => setIsCategoriesModalOpen(true)}
+        onOpenCategories={() => {
+          setCategoryModalType('expense');
+          setIsCategoriesModalOpen(true);
+        }}
         onOpenBackup={() => setIsBackupModalOpen(true)}
       />
 
-      {/* Main Content Area */}
       <main className="flex-1 w-full max-w-md mx-auto">
         {activeTab === 'add' && (
           <QuickAddView
-            categories={categories}
-            onAddExpense={handleAddExpense}
-            todayExpenses={todayExpenses}
-            onManageCategories={() => setIsCategoriesModalOpen(true)}
+            expenseCategories={expenseCategories}
+            incomeCategories={incomeCategories}
+            onAddTransaction={handleAddTransaction}
+            todaySpent={todaySpent}
+            monthIncome={monthIncome}
+            totalBalance={totalBalance}
+            todayTransactions={todayTransactions}
+            onManageCategories={(type) => {
+              setCategoryModalType(type);
+              setIsCategoriesModalOpen(true);
+            }}
+            onOpenStartingBalance={() => setIsStartingBalanceModalOpen(true)}
+            showStartingBalancePrompt={showStartingBalancePrompt}
+            onDismissStartingBalancePrompt={() => {
+              StorageService.markStartingBalancePrompted();
+              setShowStartingBalancePrompt(false);
+            }}
           />
         )}
 
         {activeTab === 'history' && (
           <HistoryView
-            expenses={expenses}
-            categories={categories}
-            onDeleteExpense={handleDeleteExpense}
-            onUpdateExpense={handleUpdateExpense}
+            transactions={transactions}
+            expenseCategories={expenseCategories}
+            incomeCategories={incomeCategories}
+            onDeleteTransaction={handleDeleteTransaction}
+            onUpdateTransaction={handleUpdateTransaction}
             onNavigateToAdd={() => setActiveTab('add')}
           />
         )}
 
         {activeTab === 'insights' && (
-          <InsightsView expenses={expenses} categories={categories} />
+          <InsightsView transactions={transactions} categories={allCategories} />
         )}
 
         {activeTab === 'budgets' && (
           <BudgetsView
-            expenses={expenses}
-            categories={categories}
+            transactions={transactions}
+            categories={expenseCategories}
             budget={budget}
             onUpdateBudget={handleUpdateBudget}
           />
         )}
       </main>
 
-      {/* Undo / Info Toast */}
       <Toast toast={toast} onDismiss={() => setToast(null)} />
 
-      {/* Bottom Main Navigation */}
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Categories Management Modal */}
       <CategoryManagerModal
         isOpen={isCategoriesModalOpen}
         onClose={() => setIsCategoriesModalOpen(false)}
-        categories={categories}
+        initialType={categoryModalType}
+        expenseCategories={expenseCategories}
+        incomeCategories={incomeCategories}
         onAddCategory={handleAddCategory}
         onUpdateCategory={handleUpdateCategory}
         onDeleteCategory={handleDeleteCategory}
       />
 
-      {/* Data Backup & Restore Modal */}
       <BackupModal
         isOpen={isBackupModalOpen}
         onClose={() => setIsBackupModalOpen(false)}
         onDataChanged={loadData}
+        onOpenStartingBalance={() => setIsStartingBalanceModalOpen(true)}
+      />
+
+      <StartingBalanceModal
+        isOpen={isStartingBalanceModalOpen}
+        onClose={() => setIsStartingBalanceModalOpen(false)}
+        onSaveStartingBalance={handleSaveStartingBalance}
       />
     </div>
   );
